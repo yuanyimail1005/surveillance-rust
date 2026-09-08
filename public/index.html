@@ -1,0 +1,2920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raspberry Pi Surveillance</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 12px;
+            overflow: hidden;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            width: 96vw;
+            max-height: 96dvh;
+            aspect-ratio: 16 / 9;
+            padding: 20px;
+            overflow: auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 16px;
+            font-size: clamp(1.3rem, 2vw, 1.9rem);
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1.8fr 0.8fr;
+            gap: 16px;
+            align-items: start;
+        }
+
+        .video-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .video-feed-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+        }
+
+        #video-feed {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            object-fit: contain;
+            border-radius: 10px;
+            border: 3px solid #667eea;
+            background: #000;
+            display: block;
+            transform-origin: center center;
+            transition: transform 0.22s ease;
+        }
+
+        #face-overlay {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            transform-origin: center center;
+            transition: transform 0.22s ease;
+        }
+
+        .controls-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .video-tools {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .video-tools label {
+            display: block;
+            font-size: 0.9em;
+            font-weight: 600;
+            color: #2f3640;
+            margin-bottom: 8px;
+        }
+
+        .rotation-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cfd6e6;
+            border-radius: 8px;
+            background: #fff;
+            color: #2f3640;
+            font-size: 0.95em;
+        }
+
+        .control-group {
+            background: #f8f9fa;
+            padding: 14px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            flex: 1;
+            min-width: 120px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c0392b;
+        }
+
+        .btn-danger:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        .status.active {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.inactive {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .recording-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #e74c3c;
+            animation: pulse 1s infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .info-box {
+            background: white;
+            padding: 12px;
+            border-radius: 5px;
+            border-left: 3px solid #667eea;
+            font-size: 0.95em;
+            line-height: 1.6;
+        }
+
+        .info-box p {
+            margin: 5px 0;
+        }
+
+        #frame-sync-debug.sync-good {
+            color: #1f7a3a;
+            font-weight: 600;
+        }
+
+        #frame-sync-debug.sync-warn {
+            color: #9a6700;
+            font-weight: 600;
+        }
+
+        #frame-sync-debug.sync-bad {
+            color: #b42318;
+            font-weight: 600;
+        }
+
+        #frame-sync-debug.sync-neutral {
+            color: #4b5563;
+        }
+
+        .sync-legend {
+            margin-left: 8px;
+            font-size: 0.82em;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .sync-legend .good {
+            color: #1f7a3a;
+        }
+
+        .sync-legend .warn {
+            color: #9a6700;
+        }
+
+        .sync-legend .bad {
+            color: #b42318;
+        }
+
+        .source-badge {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 0.75em;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            vertical-align: middle;
+            border: 1px solid transparent;
+        }
+
+        .source-badge.v4l2 {
+            background: #e8f5ff;
+            color: #0b5c89;
+            border-color: #b8def6;
+        }
+
+        .source-badge.csi {
+            background: #eaf8ee;
+            color: #1f6b3a;
+            border-color: #bfe6cd;
+        }
+
+        .source-badge.unknown {
+            background: #f4f4f5;
+            color: #5f6368;
+            border-color: #d7d9dd;
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .toggle-label {
+            font-size: 0.9em;
+            font-weight: 600;
+            color: #2f3640;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: #ccc;
+            border-radius: 24px;
+            transition: background 0.2s;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: #667eea;
+        }
+
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(20px);
+        }
+
+        .debug-box {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.85em;
+            font-family: monospace;
+            max-height: 100px;
+            overflow-y: auto;
+            color: #666;
+        }
+
+        .volume-meter {
+            margin-top: 10px;
+        }
+
+        .volume-meter p {
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .volume-bar-container {
+            width: 100%;
+            height: 20px;
+            background: linear-gradient(90deg, #f3f4f6 0%, #eceff4 100%);
+            border-radius: 5px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+            position: relative;
+        }
+
+        .volume-bar-container::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: repeating-linear-gradient(
+                90deg,
+                rgba(255, 255, 255, 0.24) 0px,
+                rgba(255, 255, 255, 0.24) 2px,
+                transparent 2px,
+                transparent 14px
+            );
+            pointer-events: none;
+        }
+
+        .volume-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #2ecc71 0%, #f1c40f 68%, #e74c3c 100%);
+            transition: width 0.12s ease-out, filter 0.12s ease-out;
+            width: 0%;
+            will-change: width;
+        }
+
+        .volume-bar.level-silent {
+            filter: saturate(0.75) brightness(0.95);
+        }
+
+        .volume-bar.level-low {
+            filter: saturate(0.9) brightness(0.98);
+        }
+
+        .volume-bar.level-good {
+            filter: saturate(1.05) brightness(1.03);
+        }
+
+        .volume-bar.level-high {
+            filter: saturate(1.2) brightness(1.06);
+        }
+
+        .volume-text {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 5px;
+            text-align: center;
+        }
+
+        .speaker-volume-control {
+            margin-top: 12px;
+            padding: 10px;
+            border: 1px solid #dfe4ee;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        .speaker-volume-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9em;
+            color: #2f3640;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .speaker-slider {
+            width: 100%;
+            accent-color: #667eea;
+            cursor: pointer;
+        }
+
+        .recording-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .recording-controls button {
+            min-width: 0;
+            width: 100%;
+        }
+
+        @media (max-width: 992px) {
+            body {
+                overflow: auto;
+                padding: 12px;
+            }
+
+            .container {
+                width: 100%;
+                height: auto;
+                aspect-ratio: auto;
+                overflow: visible;
+            }
+
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-height: 760px) and (min-width: 993px) {
+            .container {
+                padding: 14px;
+            }
+
+            h1 {
+                margin-bottom: 10px;
+                font-size: 1.2rem;
+            }
+
+            .content {
+                gap: 12px;
+            }
+
+            .controls-section {
+                gap: 10px;
+            }
+
+            .control-group {
+                padding: 10px;
+            }
+
+            .control-group h3 {
+                margin-bottom: 8px;
+                font-size: 1rem;
+            }
+
+            button {
+                padding: 8px 12px;
+            }
+
+            .status {
+                margin-top: 8px;
+                padding: 8px;
+            }
+
+            .volume-meter {
+                margin-top: 8px;
+            }
+
+            .debug-box {
+                max-height: 64px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div
+        class="container"
+        data-talkback-highpass-hz="80"
+        data-talkback-lowpass-hz="7000"
+        data-talkback-chunk-samples="8192"
+        data-talkback-echo-cancellation="true"
+        data-talkback-noise-suppression="true"
+        data-talkback-auto-gain-control="false"
+        data-talkback-latency-seconds="0.02"
+        data-camera-width="1920"
+        data-camera-height="1080"
+        data-camera-fps="25"
+        data-camera-device="/dev/video0"
+        data-camera-device-preference="/dev/video0"
+        data-camera-source-type="Unknown"
+    >
+        <h1>🎥 Raspberry Pi Surveillance System</h1>
+
+        <div class="content">
+            <div class="video-section">
+                <div class="video-feed-wrapper">
+                    <video id="video-feed" autoplay playsinline muted></video>
+                    <canvas id="face-overlay"></canvas>
+                </div>
+                <audio id="remote-audio" autoplay playsinline style="display:none"></audio>
+                <div class="video-tools">
+                    <div style="display:flex; gap:12px; align-items:flex-end;">
+                        <div style="flex:1;">
+                            <label for="camera-rotation">Camera Rotation</label>
+                            <select id="camera-rotation" class="rotation-select">
+                                <option value="0">0° (Default)</option>
+                                <option value="90">90°</option>
+                                <option value="180">180°</option>
+                                <option value="270">270°</option>
+                            </select>
+                        </div>
+                        <div style="flex:1;">
+                            <label for="camera-resolution">📷 Camera Stream</label>
+                            <select id="camera-resolution" class="rotation-select"></select>
+                        </div>
+                        <div style="flex:0 0 80px;">
+                            <label for="camera-fps">FPS</label>
+                            <input
+                                id="camera-fps"
+                                class="rotation-select"
+                                type="number"
+                                min="1"
+                                max="60"
+                                step="1"
+                                value="25"
+                            >
+                        </div>
+                    </div>
+                    <div style="margin-top:10px;">
+                        <label for="camera-device-path">📡 Camera Device Path</label>
+                        <select id="camera-device-path" class="rotation-select"></select>
+                    </div>
+                    <button id="apply-camera-settings-btn" class="btn-primary" style="margin-top:10px; min-width:0; width:100%;">
+                        Apply Camera Settings
+                    </button>
+                    <p class="volume-text" id="camera-settings-status">Loading camera settings...</p>
+                    <div class="recording-controls">
+                        <button id="record-video-btn" class="btn-primary" type="button">● Start Recording</button>
+                        <button id="snapshot-btn" class="btn-primary" type="button" title="Capture current frame as image">📷 Snapshot</button>
+                        <button id="choose-save-folder-btn" class="btn-primary" type="button" style="max-width:190px;">Choose Save Folder</button>
+                    </div>
+                    <p class="volume-text" id="recording-status">Ready to record</p>
+                </div>
+                <div class="video-tools">
+                    <div style="display:flex; gap:12px; align-items:flex-end;">
+                        <div style="flex:1;">
+                            <label for="server-mic-select">🎤 Pi Microphone</label>
+                            <select id="server-mic-select" class="rotation-select"></select>
+                        </div>
+                        <div style="flex:1;">
+                            <label for="server-speaker-select">🔈 Pi Speaker</label>
+                            <select id="server-speaker-select" class="rotation-select"></select>
+                        </div>
+                    </div>
+                    <p class="volume-text" id="server-device-status">Loading server audio devices...</p>
+                </div>
+            </div>
+
+            <div class="controls-section">
+                <div class="control-group">
+                    <h3>🎙️ Talk to Speaker</h3>
+                    <div class="button-group">
+                        <button class="btn-primary" id="talk-btn" onclick="toggleTalk()">
+                            🎤 Start Talking
+                        </button>
+                    </div>
+                    <div class="speaker-volume-control">
+                        <div class="speaker-volume-label">
+                            <span>🔉 Pi Speaker Volume</span>
+                            <span id="speaker-volume-value">--%</span>
+                        </div>
+                        <input
+                            id="speaker-volume-slider"
+                            class="speaker-slider"
+                            type="range"
+                            min="0"
+                            max="100"
+                            value="70"
+                            step="1"
+                        >
+                        <p class="volume-text" id="speaker-volume-status">Loading speaker volume...</p>
+                    </div>
+                    <div id="talk-status" class="status inactive">
+                        Microphone Input: Off
+                    </div>
+                    <div class="volume-meter">
+                        <p>📊 Volume Level:</p>
+                        <div class="volume-bar-container">
+                            <div class="volume-bar" id="volume-bar"></div>
+                        </div>
+                        <p class="volume-text" id="volume-text">0%</p>
+                    </div>
+                    <div class="debug-box" id="debug-box"></div>
+                </div>
+
+                <div class="control-group">
+                    <h3>ℹ️ System Info</h3>
+                    <div class="info-box">
+                        <p id="video-info"><strong>Video:</strong> 1920x1080 @ 25fps</p>
+                        <p id="camera-device-info">
+                            <strong>Camera Device:</strong> /dev/video0
+                            <span id="camera-source-badge" class="source-badge unknown">Unknown</span>
+                        </p>
+                        <p><strong>Audio:</strong> 48000Hz Mono</p>
+                        <p id="video-playback-status"><strong>Playback:</strong> Waiting for WebRTC video</p>
+                        <p id="face-ai-status"><strong>Face AI:</strong> Initializing...</p>
+                        <p id="frame-sync-debug"><strong>Sync:</strong> frame -, face - <span class="sync-legend">(<span class="good">good</span>/<span class="warn">warn</span>/<span class="bad">bad</span>)</span></p>
+                        <p id="system-status"><strong>Status:</strong> Running ✓</p>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>🤖 Face Recognition</h3>
+                    <div class="toggle-row">
+                        <span class="toggle-label">Enable Face Recognition</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="face-recognition-toggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div style="font-size:0.85em; color:#57606f; margin-top:6px; line-height:1.7;">
+                        <div><strong>Backend:</strong> <span id="face-backend-label">face-api.js</span></div>
+                        <div><strong>Model:</strong> SSD MobileNet v1 + ArcFace</div>
+                        <div><strong>Known faces:</strong> <span id="face-known-count">—</span></div>
+                        <div><strong>Match threshold:</strong> <span id="face-match-threshold">—</span></div>
+                        <div><strong>Detect every:</strong> <span id="face-detect-interval">—</span> frames</div>
+                    </div>
+                    <p class="volume-text" id="face-settings-status">Loading...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isListening = false;
+        let isTalking = false;
+        let mediaRecorder = null;
+        let audioContext = null;
+        let micStream = null;
+        let talkWorkletNode = null;
+        let micSourceNode = null;
+        let voiceHighPass = null;
+        let voiceLowPass = null;
+        let silentMonitorGain = null;
+        let talkSessionId = 0;
+        let listenMeterSmooth = 0;
+        let talkMeterSmooth = 0;
+        let webrtcPeer = null;
+        let webrtcState = 'idle';
+        let webrtcConnectPromise = null;
+        let webrtcReconnectTimer = null;
+        let webrtcReconnectAttempt = 0;
+        let webrtcExpectedClose = false;
+        let videoTextChannel = null;
+        let receiveVideoTransceiver = null;
+        let receiveAudioTransceiver = null;
+        let talkTransceiver = null;
+        let talkSender = null;
+        let talkDestination = null;
+        let talkDestinationTrack = null;
+        let remoteVideoTrack = null;
+        let remoteAudioTrack = null;
+        let remoteVideoStream = null;
+        let remoteAudioStream = null;
+        let videoCurrentFrameSeq = 0;
+        let videoDisplayedFrameSeq = 0;
+        let lastAppliedFaceFrameSeq = 0;
+        let nextVideoFrameSeqFromMeta = null;
+        let videoSettingsApplyInProgress = false;
+        let isRecordingVideo = false;
+        let recordingCanvas = null;
+        let recordingContext = null;
+        let recordingAnimationFrame = null;
+        let recordingCanvasStream = null;
+        let recordingCombinedStream = null;
+        let recordingMediaRecorder = null;
+        let recordingChunks = [];
+        let recordingMimeType = '';
+        let recordingDirectoryHandle = null;
+        let recordingRotationDegrees = 0;
+        let recordingAudioDestination = null;
+        let recordingAudioGain = null;
+        let recordingAudioCaptureActive = false;
+        let recordingRemoteAudioSource = null;
+        let recordingTalkMicSource = null;
+        let recordingTalkMicGain = null;
+        let nextRecordingAudioTime = 0;
+        let listenReconnectTimer = null;
+        let talkWorkletModulePromise = null;
+        let speakerVolumeDebounceTimer = null;
+        let faceStatusTimer = null;
+        let latestFaceResult = null;
+        const pendingFaceResultsBySeq = new Map();
+        let lastVideoFrameAt = 0;
+        let serverMicOptions = [];
+        let serverSpeakerOptions = [];
+        let selectedServerMic = 'default';
+        let selectedServerSpeaker = '@DEFAULT_SINK@';
+        const appContainer = document.querySelector('.container');
+        let cameraSettings = {
+            width: Number(appContainer?.dataset.cameraWidth || 1920),
+            height: Number(appContainer?.dataset.cameraHeight || 1080),
+            fps: Number(appContainer?.dataset.cameraFps || 25),
+            devicePath: appContainer?.dataset.cameraDevicePreference || appContainer?.dataset.cameraDevice || '/dev/video0',
+            sourceType: appContainer?.dataset.cameraSourceType || 'Unknown',
+            fpsMin: 1,
+            fpsMax: 60,
+            availableDevices: [],
+            allowedResolutions: [
+                { width: 640, height: 480 },
+                { width: 1280, height: 720 },
+                { width: 1920, height: 1080 },
+                { width: 2560, height: 1440 }
+            ]
+        };
+        const ROTATION_STORAGE_KEY = 'cameraRotationDegrees';
+        const MAX_LOCAL_RECORDINGS_BYTES = 1024 * 1024 * 1024;
+        const TALKBACK_CONFIG = {
+            highPassHz: Number(appContainer?.dataset.talkbackHighpassHz || 100),
+            lowPassHz: Number(appContainer?.dataset.talkbackLowpassHz || 5000),
+            chunkSamples: Number(appContainer?.dataset.talkbackChunkSamples || 8192),
+            echoCancellation: appContainer?.dataset.talkbackEchoCancellation !== 'false',
+            noiseSuppression: appContainer?.dataset.talkbackNoiseSuppression !== 'false',
+            autoGainControl: appContainer?.dataset.talkbackAutoGainControl === 'true',
+            latencySeconds: Number(appContainer?.dataset.talkbackLatencySeconds || 0.02)
+        };
+
+        // Debug logging
+        function debug(msg) {
+            const box = document.getElementById('debug-box');
+            const timestamp = new Date().toLocaleTimeString();
+            box.innerHTML = `[${timestamp}] ${msg}<br>` + box.innerHTML;
+            if (box.children.length > 5) {
+                box.removeChild(box.lastChild);
+            }
+            console.log(msg);
+        }
+
+        function setVideoPlaybackStatus(message) {
+            const status = document.getElementById('video-playback-status');
+            if (status) {
+                status.innerHTML = `<strong>Playback:</strong> ${message}`;
+            }
+        }
+
+        function describeVideoReadyState(readyState) {
+            if (readyState === 0) return 'HAVE_NOTHING';
+            if (readyState === 1) return 'HAVE_METADATA';
+            if (readyState === 2) return 'HAVE_CURRENT_DATA';
+            if (readyState === 3) return 'HAVE_FUTURE_DATA';
+            if (readyState === 4) return 'HAVE_ENOUGH_DATA';
+            return `readyState=${readyState}`;
+        }
+
+        function attemptVideoPlayback(feed, reason) {
+            if (!feed) return;
+            feed.muted = true;
+            feed.autoplay = true;
+            feed.playsInline = true;
+            const playPromise = feed.play();
+            if (playPromise && typeof playPromise.then === 'function') {
+                playPromise
+                    .then(() => {
+                        const dims = `${feed.videoWidth || 0}x${feed.videoHeight || 0}`;
+                        setVideoPlaybackStatus(`Playing (${dims}, ${describeVideoReadyState(feed.readyState)})`);
+                    })
+                    .catch((error) => {
+                        setVideoPlaybackStatus(`play() blocked: ${error.message}`);
+                    });
+            }
+        }
+
+        function bindVideoElementDiagnostics(feed) {
+            if (!feed || feed.dataset.diagnosticsBound === '1') {
+                return;
+            }
+
+            const reportState = (eventName) => {
+                const dims = `${feed.videoWidth || 0}x${feed.videoHeight || 0}`;
+                const message = `${eventName}: ${dims}, ${describeVideoReadyState(feed.readyState)}, paused=${feed.paused}`;
+                setVideoPlaybackStatus(message);
+            };
+
+            feed.addEventListener('loadedmetadata', () => {
+                reportState('loadedmetadata');
+                attemptVideoPlayback(feed, 'loadedmetadata');
+            });
+            feed.addEventListener('loadeddata', () => reportState('loadeddata'));
+            feed.addEventListener('canplay', () => {
+                reportState('canplay');
+                attemptVideoPlayback(feed, 'canplay');
+            });
+            feed.addEventListener('playing', () => reportState('playing'));
+            feed.addEventListener('pause', () => reportState('pause'));
+            feed.addEventListener('stalled', () => reportState('stalled'));
+            feed.addEventListener('error', () => {
+                const error = feed.error ? `${feed.error.code}` : 'unknown';
+                debug(`Video element error code=${error}`);
+                setVideoPlaybackStatus(`Error code=${error}`);
+            });
+            feed.dataset.diagnosticsBound = '1';
+        }
+
+        function attachRemoteVideoTrack(track, inboundStream) {
+            const feed = document.getElementById('video-feed');
+            if (!feed) return;
+            bindVideoElementDiagnostics(feed);
+
+            if (!remoteVideoStream) {
+                remoteVideoStream = new MediaStream();
+            }
+
+            for (const existingTrack of remoteVideoStream.getVideoTracks()) {
+                remoteVideoStream.removeTrack(existingTrack);
+            }
+
+            remoteVideoStream.addTrack(track);
+            feed.srcObject = inboundStream || remoteVideoStream;
+            setVideoPlaybackStatus(`Track attached (${track.readyState})`);
+            attemptVideoPlayback(feed, 'track-attach');
+
+            track.onunmute = () => {
+                setVideoPlaybackStatus('Track unmuted');
+                attemptVideoPlayback(feed, 'track-unmute');
+            };
+
+            track.onended = () => {
+                setVideoPlaybackStatus('Track ended');
+            };
+        }
+
+        // Initialize Web Audio API
+        async function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+        }
+
+        async function ensureTalkWorkletModule() {
+            if (!audioContext || !audioContext.audioWorklet) {
+                throw new Error('AudioWorklet is not supported in this browser');
+            }
+
+            if (!talkWorkletModulePromise) {
+                talkWorkletModulePromise = audioContext.audioWorklet.addModule('/static/talk-capture-processor.js');
+            }
+
+            await talkWorkletModulePromise;
+        }
+
+        function scheduleVideoReconnect() {
+            if (webrtcReconnectTimer || document.hidden) {
+                return;
+            }
+
+            webrtcReconnectAttempt += 1;
+            const delay = Math.min(3000, 600 + (webrtcReconnectAttempt - 1) * 400);
+            webrtcReconnectTimer = setTimeout(() => {
+                webrtcReconnectTimer = null;
+                startVideoStream();
+            }, delay);
+        }
+
+        function parseTextPayload(payload) {
+            if (typeof payload !== 'string') {
+                return null;
+            }
+            try {
+                return JSON.parse(payload);
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function handleVideoTextPayload(raw) {
+            const msg = parseTextPayload(raw);
+            if (!msg || typeof msg !== 'object') {
+                return;
+            }
+            if (msg.type === 'frame_meta') {
+                const metaSeq = Number(msg.broadcast_frame_seq || 0);
+                if (Number.isFinite(metaSeq) && metaSeq > 0) {
+                    nextVideoFrameSeqFromMeta = metaSeq;
+                    videoCurrentFrameSeq = metaSeq;
+                    videoDisplayedFrameSeq = metaSeq;
+                    lastVideoFrameAt = Date.now();
+                    maybeApplyFaceResultForDisplayedFrame();
+                    updateFrameSyncDebug();
+                }
+                return;
+            }
+            if (msg.type === 'face_data') {
+                handleFaceDataPush(msg);
+            }
+        }
+
+        function getChannelByLabel(label) {
+            if (label === 'video-text') return videoTextChannel;
+            return null;
+        }
+
+        async function connectWebRTCSession() {
+            if (webrtcConnectPromise) {
+                return webrtcConnectPromise;
+            }
+
+            if (webrtcPeer && (webrtcState === 'connecting' || webrtcState === 'connected')) {
+                return webrtcPeer;
+            }
+
+            webrtcConnectPromise = (async () => {
+                if (webrtcPeer) {
+                    try { webrtcPeer.close(); } catch (_) {}
+                }
+
+                const peer = new RTCPeerConnection();
+                webrtcPeer = peer;
+                webrtcState = 'connecting';
+                setVideoPlaybackStatus('Connecting WebRTC...');
+
+                videoTextChannel = peer.createDataChannel('video-text', { ordered: true });
+                videoTextChannel.onmessage = (messageEvent) => {
+                    handleVideoTextPayload(messageEvent.data);
+                };
+                videoTextChannel.onopen = () => {
+                    setVideoPlaybackStatus('Metadata channel open, waiting for media');
+                };
+                videoTextChannel.onclose = () => {};
+                videoTextChannel.onerror = (event) => {
+                    const message = event?.message || 'unknown data channel error';
+                    debug(`video-text data channel error: ${message}`);
+                };
+                receiveVideoTransceiver = peer.addTransceiver('video', { direction: 'recvonly' });
+                receiveAudioTransceiver = peer.addTransceiver('audio', { direction: 'recvonly' });
+                talkTransceiver = peer.addTransceiver('audio', { direction: 'sendonly' });
+                talkSender = talkTransceiver.sender;
+
+                try {
+                    if (receiveVideoTransceiver?.receiver && 'playoutDelayHint' in receiveVideoTransceiver.receiver) {
+                        receiveVideoTransceiver.receiver.playoutDelayHint = 0;
+                    }
+                    if (receiveAudioTransceiver?.receiver && 'playoutDelayHint' in receiveAudioTransceiver.receiver) {
+                        receiveAudioTransceiver.receiver.playoutDelayHint = 0;
+                    }
+                } catch (_) {}
+
+                remoteVideoTrack = null;
+                remoteAudioTrack = null;
+                remoteVideoStream = null;
+                remoteAudioStream = null;
+
+                peer.ondatachannel = (event) => {
+                    void event;
+                };
+
+                peer.ontrack = (event) => {
+                    const track = event.track;
+                    if (track.kind === 'video') {
+                        remoteVideoTrack = track;
+                        attachRemoteVideoTrack(track, event.streams[0] || null);
+                        return;
+                    }
+
+                    if (track.kind === 'audio') {
+                        remoteAudioTrack = track;
+                        const remoteAudio = document.getElementById('remote-audio');
+                        if (remoteAudio) {
+                            remoteAudio.srcObject = event.streams[0] || new MediaStream([track]);
+                            remoteAudio.muted = !isListening;
+                            remoteAudio.play().catch(() => {});
+                        }
+                    }
+                };
+
+                peer.onconnectionstatechange = () => {
+                    const state = peer.connectionState;
+                    if (state === 'connected') {
+                        webrtcState = 'connected';
+                        webrtcReconnectAttempt = 0;
+                        setVideoPlaybackStatus('WebRTC connected, waiting for video track');
+                        return;
+                    }
+
+                    if (state === 'disconnected') {
+                        // 'disconnected' is often transient; avoid spawning duplicate sessions.
+                        setVideoPlaybackStatus('WebRTC temporarily disconnected, waiting to recover...');
+                        return;
+                    }
+
+                    if (state === 'failed' || state === 'closed') {
+                        if (!webrtcExpectedClose) {
+                            debug(`WebRTC ${state}, reconnecting...`);
+                            setVideoPlaybackStatus(`WebRTC ${state}, reconnecting...`);
+                            scheduleVideoReconnect();
+                        }
+                    }
+                };
+
+                peer.oniceconnectionstatechange = () => {
+                    if (peer.iceConnectionState === 'failed') {
+                        setVideoPlaybackStatus('WebRTC ICE failed, reconnecting...');
+                    }
+                };
+
+                const offer = await peer.createOffer();
+                await peer.setLocalDescription(offer);
+
+                await new Promise((resolve) => {
+                    if (peer.iceGatheringState === 'complete') {
+                        resolve();
+                        return;
+                    }
+                    const onGatheringStateChange = () => {
+                        if (peer.iceGatheringState === 'complete') {
+                            peer.removeEventListener('icegatheringstatechange', onGatheringStateChange);
+                            resolve();
+                        }
+                    };
+                    peer.addEventListener('icegatheringstatechange', onGatheringStateChange);
+                });
+
+                const response = await fetch('/webrtc/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: peer.localDescription.type,
+                        sdp: peer.localDescription.sdp
+                    })
+                });
+                const answer = await response.json();
+                if (!response.ok || !answer.sdp || answer.type !== 'answer') {
+                    throw new Error(answer.message || `Signaling failed: HTTP ${response.status}`);
+                }
+
+                await peer.setRemoteDescription(answer);
+                return peer;
+            })();
+
+            try {
+                return await webrtcConnectPromise;
+            } finally {
+                webrtcConnectPromise = null;
+            }
+        }
+
+        function clearFaceResultsThroughSeq(seq) {
+            if (!Number.isFinite(seq)) {
+                return;
+            }
+            for (const key of pendingFaceResultsBySeq.keys()) {
+                if (key <= seq) {
+                    pendingFaceResultsBySeq.delete(key);
+                }
+            }
+        }
+
+        function getFaceResultRetentionWindowFrames() {
+            const fps = Number(cameraSettings?.fps || 0);
+            if (!Number.isFinite(fps) || fps <= 0) {
+                return 2;
+            }
+            return Math.max(2, Math.round(fps));
+        }
+
+        function maybeApplyFaceResultForDisplayedFrame() {
+            if (!Number.isFinite(videoCurrentFrameSeq) || videoCurrentFrameSeq <= 0) {
+                return;
+            }
+            // Find the best available result: highest seq that is <= the current frame.
+            let bestSeq = -1;
+            for (const key of pendingFaceResultsBySeq.keys()) {
+                if (key <= videoCurrentFrameSeq && key > bestSeq) {
+                    bestSeq = key;
+                }
+            }
+            if (bestSeq >= 0) {
+                latestFaceResult = pendingFaceResultsBySeq.get(bestSeq) || null;
+                lastAppliedFaceFrameSeq = Number(latestFaceResult?.broadcast_frame_seq || bestSeq);
+                clearFaceResultsThroughSeq(bestSeq);
+            }
+            // Always redraw to ensure overlay stays clear when face recognition is disabled
+            drawFaceOverlay();
+            updateFrameSyncDebug();
+        }
+
+
+
+        function updateFrameSyncDebug() {
+            const status = document.getElementById('frame-sync-debug');
+            if (!status) {
+                return;
+            }
+
+            status.classList.remove('sync-good', 'sync-warn', 'sync-bad', 'sync-neutral');
+
+            const displayed = videoDisplayedFrameSeq > 0 ? videoDisplayedFrameSeq : '-';
+            const applied = lastAppliedFaceFrameSeq > 0 ? lastAppliedFaceFrameSeq : '-';
+            let deltaText = '';
+            let deltaValue = null;
+            if (videoDisplayedFrameSeq > 0 && lastAppliedFaceFrameSeq > 0) {
+                deltaValue = videoDisplayedFrameSeq - lastAppliedFaceFrameSeq;
+                deltaText = ` (Δ ${deltaValue})`;
+
+                const absDelta = Math.abs(deltaValue);
+                const fps = Number(cameraSettings?.fps || 0);
+                const warnThreshold = (Number.isFinite(fps) && fps > 0) ? Math.round(fps) : 30;
+                const goodThreshold = Math.ceil(warnThreshold / 2);
+                if (absDelta <= goodThreshold) {
+                    status.classList.add('sync-good');
+                } else if (absDelta <= warnThreshold) {
+                    status.classList.add('sync-warn');
+                } else {
+                    status.classList.add('sync-bad');
+                }
+            } else {
+                status.classList.add('sync-neutral');
+            }
+            status.innerHTML = `<strong>Sync:</strong> frame ${displayed}, face ${applied}${deltaText}`;
+        }
+
+        function bufferFaceResult(faceResult) {
+            const faceSeq = Number(faceResult?.broadcast_frame_seq || 0);
+            if (!Number.isFinite(faceSeq) || faceSeq <= 0) {
+                latestFaceResult = faceResult || null;
+                drawFaceOverlay();
+                return;
+            }
+
+            pendingFaceResultsBySeq.set(faceSeq, faceResult || null);
+            if (faceSeq <= videoCurrentFrameSeq) {
+                maybeApplyFaceResultForDisplayedFrame();
+            }
+        }
+
+        function startVideoStream() {
+            const feed = document.getElementById('video-feed');
+            if (!feed) return;
+            bindVideoElementDiagnostics(feed);
+
+            if (feed.dataset.videoFrameDropBound !== '1') {
+                const settleFrameSwap = (event) => {
+                    if (event?.type === 'loadeddata' || event?.type === 'timeupdate') {
+                        lastVideoFrameAt = Date.now();
+                        videoDisplayedFrameSeq = videoCurrentFrameSeq;
+                    }
+                    maybeApplyFaceResultForDisplayedFrame();
+                    updateFrameSyncDebug();
+                };
+                feed.addEventListener('loadeddata', settleFrameSwap);
+                feed.addEventListener('timeupdate', settleFrameSwap);
+                feed.addEventListener('error', settleFrameSwap);
+                feed.dataset.videoFrameDropBound = '1';
+            }
+
+            if (webrtcState === 'connected' || webrtcState === 'connecting') {
+                setVideoPlaybackStatus(`WebRTC ${webrtcState}`);
+                return;
+            }
+
+            if (webrtcReconnectTimer) {
+                clearTimeout(webrtcReconnectTimer);
+                webrtcReconnectTimer = null;
+            }
+
+            webrtcExpectedClose = false;
+            connectWebRTCSession().then(() => {
+                videoSettingsApplyInProgress = false;
+                setVideoPlaybackStatus('WebRTC connected, waiting for video track');
+            }).catch((error) => {
+                webrtcState = 'idle';
+                debug(`WebRTC connect failed: ${error.message}`);
+                setVideoPlaybackStatus(`WebRTC connect failed: ${error.message}`);
+                scheduleVideoReconnect();
+            });
+        }
+
+        function stopVideoStream(options = {}) {
+            const { intentional = true, reason = 'unspecified' } = options;
+
+            if (webrtcReconnectTimer) {
+                clearTimeout(webrtcReconnectTimer);
+                webrtcReconnectTimer = null;
+            }
+
+            webrtcExpectedClose = intentional;
+
+            if (webrtcPeer) {
+                try { webrtcPeer.close(); } catch (_) {}
+            }
+            webrtcPeer = null;
+            webrtcState = 'idle';
+            videoTextChannel = null;
+            receiveVideoTransceiver = null;
+            receiveAudioTransceiver = null;
+            talkTransceiver = null;
+            talkSender = null;
+            remoteVideoTrack = null;
+            remoteAudioTrack = null;
+            remoteVideoStream = null;
+            remoteAudioStream = null;
+
+            const feed = document.getElementById('video-feed');
+            if (feed) {
+                feed.pause();
+                feed.srcObject = null;
+            }
+            setVideoPlaybackStatus('Stopped');
+
+            const remoteAudio = document.getElementById('remote-audio');
+            if (remoteAudio) {
+                remoteAudio.pause();
+                remoteAudio.srcObject = null;
+            }
+
+            videoCurrentFrameSeq = 0;
+            videoDisplayedFrameSeq = 0;
+            lastAppliedFaceFrameSeq = 0;
+            nextVideoFrameSeqFromMeta = null;
+            pendingFaceResultsBySeq.clear();
+            updateFrameSyncDebug();
+        }
+
+        function rmsToPercent(rms) {
+            const db = rms > 0 ? 20 * Math.log10(rms) : -100;
+            return Math.min(100, Math.max(0, Math.round(((db + 70) / 60) * 100)));
+        }
+
+        function volumeLabel(percent) {
+            if (percent < 5) return 'Silent';
+            if (percent < 25) return 'Low';
+            if (percent < 75) return 'Good';
+            return 'High';
+        }
+
+        function volumeLevelClass(percent) {
+            if (percent < 5) return 'level-silent';
+            if (percent < 25) return 'level-low';
+            if (percent < 75) return 'level-good';
+            return 'level-high';
+        }
+
+        function updateVolumeMeter(barId, textId, rawPercent, meterType) {
+            const bar = document.getElementById(barId);
+            const text = document.getElementById(textId);
+            if (!bar || !text) return;
+
+            const clamped = Math.min(100, Math.max(0, rawPercent));
+            const prev = meterType === 'listen' ? listenMeterSmooth : talkMeterSmooth;
+            const smooth = Math.round(prev * 0.72 + clamped * 0.28);
+            if (meterType === 'listen') {
+                listenMeterSmooth = smooth;
+            } else {
+                talkMeterSmooth = smooth;
+            }
+
+            bar.style.width = smooth + '%';
+            bar.classList.remove('level-silent', 'level-low', 'level-good', 'level-high');
+            bar.classList.add(volumeLevelClass(smooth));
+            text.textContent = `${smooth}% · ${volumeLabel(smooth)}`;
+        }
+
+        function resetVolumeMeter(barId, textId, meterType) {
+            if (meterType === 'listen') {
+                listenMeterSmooth = 0;
+            } else {
+                talkMeterSmooth = 0;
+            }
+            updateVolumeMeter(barId, textId, 0, meterType);
+        }
+
+        function updateSpeakerVolumeUI(volume, statusText) {
+            const slider = document.getElementById('speaker-volume-slider');
+            const value = document.getElementById('speaker-volume-value');
+            const status = document.getElementById('speaker-volume-status');
+            if (!slider || !value || !status) return;
+
+            const clamped = Math.max(0, Math.min(100, Number(volume) || 0));
+            slider.value = clamped;
+            value.textContent = `${clamped}%`;
+            if (statusText) {
+                status.textContent = statusText;
+            }
+        }
+
+        async function fetchSpeakerVolume() {
+            const status = document.getElementById('speaker-volume-status');
+            try {
+                const response = await fetch('/speaker_volume');
+                const data = await response.json();
+                if (!response.ok || data.status !== 'ok') {
+                    throw new Error(data.message || `HTTP ${response.status}`);
+                }
+
+                updateSpeakerVolumeUI(data.volume, `Using ${data.control} control`);
+            } catch (error) {
+                if (status) {
+                    status.textContent = `Speaker volume unavailable: ${error.message}`;
+                }
+            }
+        }
+
+        async function sendSpeakerVolume(volume) {
+            const status = document.getElementById('speaker-volume-status');
+            try {
+                const response = await fetch('/speaker_volume', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ volume })
+                });
+                const data = await response.json();
+                if (!response.ok || data.status !== 'ok') {
+                    throw new Error(data.message || `HTTP ${response.status}`);
+                }
+
+                updateSpeakerVolumeUI(data.volume, `Speaker volume set (${data.control})`);
+            } catch (error) {
+                if (status) {
+                    status.textContent = `Failed to set speaker volume: ${error.message}`;
+                }
+            }
+        }
+
+        function initializeSpeakerVolumeControl() {
+            const slider = document.getElementById('speaker-volume-slider');
+            if (!slider) return;
+
+            slider.addEventListener('input', (event) => {
+                const vol = Number(event.target.value);
+                updateSpeakerVolumeUI(vol, 'Adjusting...');
+                if (speakerVolumeDebounceTimer) {
+                    clearTimeout(speakerVolumeDebounceTimer);
+                }
+                speakerVolumeDebounceTimer = setTimeout(() => {
+                    sendSpeakerVolume(vol);
+                }, 180);
+            });
+
+            fetchSpeakerVolume();
+        }
+
+        function getSupportedRecordingMimeType() {
+            const candidates = [
+                'video/webm;codecs=vp9',
+                'video/webm;codecs=vp8',
+                'video/webm'
+            ];
+
+            for (const candidate of candidates) {
+                if (window.MediaRecorder && MediaRecorder.isTypeSupported(candidate)) {
+                    return candidate;
+                }
+            }
+            return '';
+        }
+
+        function setRecordingStatus(text) {
+            const status = document.getElementById('recording-status');
+            if (status) {
+                status.textContent = text;
+            }
+        }
+
+        function updateRecordingButton() {
+            const btn = document.getElementById('record-video-btn');
+            if (!btn) return;
+
+            btn.className = isRecordingVideo ? 'btn-danger' : 'btn-primary';
+            btn.textContent = isRecordingVideo ? '■ Stop Recording' : '● Start Recording';
+        }
+
+        function formatBytes(bytes) {
+            const mb = bytes / (1024 * 1024);
+            if (mb < 1024) {
+                return `${mb.toFixed(1)} MB`;
+            }
+            return `${(mb / 1024).toFixed(2)} GB`;
+        }
+
+        function buildRecordingFilename() {
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mi = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            return `recording_${yyyy}${mm}${dd}_${hh}${mi}${ss}.webm`;
+        }
+
+        function getSelectedRotationDegrees() {
+            const rotationSelect = document.getElementById('camera-rotation');
+            const raw = rotationSelect ? Number(rotationSelect.value) : Number(localStorage.getItem(ROTATION_STORAGE_KEY));
+            return [0, 90, 180, 270].includes(raw) ? raw : 0;
+        }
+
+        function pushRecordingAudioChunk(arrayBuffer) {
+            if (!audioContext || !recordingAudioGain) {
+                return;
+            }
+
+            const sampleCount = Math.floor(arrayBuffer.byteLength / 2);
+            if (sampleCount <= 0) {
+                return;
+            }
+
+            const int16Array = new Int16Array(arrayBuffer, 0, sampleCount);
+            const audioBuffer = audioContext.createBuffer(1, int16Array.length, 48000);
+            const channelData = audioBuffer.getChannelData(0);
+            for (let i = 0; i < int16Array.length; i++) {
+                channelData[i] = int16Array[i] / 32768;
+            }
+
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(recordingAudioGain);
+
+            const now = audioContext.currentTime;
+            if (nextRecordingAudioTime < now + 0.01) {
+                nextRecordingAudioTime = now + 0.01;
+            }
+            source.start(nextRecordingAudioTime);
+            nextRecordingAudioTime += audioBuffer.duration;
+        }
+
+        function attachTalkMicToRecordingMix() {
+            if (!audioContext || !recordingAudioDestination || !micStream) {
+                return;
+            }
+
+            if (recordingTalkMicSource) {
+                return;
+            }
+
+            recordingTalkMicSource = audioContext.createMediaStreamSource(micStream);
+            recordingTalkMicGain = audioContext.createGain();
+            recordingTalkMicGain.gain.value = 1.5;
+            recordingTalkMicSource.connect(recordingTalkMicGain);
+            recordingTalkMicGain.connect(recordingAudioDestination);
+        }
+
+        function detachTalkMicFromRecordingMix() {
+            if (recordingTalkMicSource) {
+                try {
+                    recordingTalkMicSource.disconnect();
+                } catch (_) {}
+                recordingTalkMicSource = null;
+            }
+            if (recordingTalkMicGain) {
+                try {
+                    recordingTalkMicGain.disconnect();
+                } catch (_) {}
+                recordingTalkMicGain = null;
+            }
+        }
+
+        async function startRecordingAudioCapture() {
+            await initAudioContext();
+            await connectWebRTCSession();
+
+            if (!recordingAudioDestination) {
+                recordingAudioDestination = audioContext.createMediaStreamDestination();
+                recordingAudioGain = audioContext.createGain();
+                recordingAudioGain.gain.value = 1;
+                recordingAudioGain.connect(recordingAudioDestination);
+            }
+
+            nextRecordingAudioTime = audioContext.currentTime;
+            recordingAudioCaptureActive = true;
+
+            if (recordingRemoteAudioSource) {
+                try { recordingRemoteAudioSource.disconnect(); } catch (_) {}
+                recordingRemoteAudioSource = null;
+            }
+
+            const remoteAudio = document.getElementById('remote-audio');
+            if (remoteAudio && remoteAudio.srcObject) {
+                recordingRemoteAudioSource = audioContext.createMediaStreamSource(remoteAudio.srcObject);
+                recordingRemoteAudioSource.connect(recordingAudioGain);
+            }
+
+            attachTalkMicToRecordingMix();
+            return recordingAudioDestination.stream.getAudioTracks()[0] || null;
+        }
+
+        function stopRecordingAudioCapture() {
+            recordingAudioCaptureActive = false;
+            if (recordingRemoteAudioSource) {
+                try { recordingRemoteAudioSource.disconnect(); } catch (_) {}
+                recordingRemoteAudioSource = null;
+            }
+            detachTalkMicFromRecordingMix();
+            nextRecordingAudioTime = 0;
+        }
+
+        async function ensureDirectoryPermission(handle) {
+            const permissionMode = { mode: 'readwrite' };
+            if ((await handle.queryPermission(permissionMode)) === 'granted') {
+                return true;
+            }
+            if ((await handle.requestPermission(permissionMode)) === 'granted') {
+                return true;
+            }
+            return false;
+        }
+
+        async function ensureClientRecordingDirectory(forcePick = false) {
+            if (!window.showDirectoryPicker || !window.isSecureContext) {
+                return null;
+            }
+
+            if (!forcePick && recordingDirectoryHandle) {
+                const granted = await ensureDirectoryPermission(recordingDirectoryHandle);
+                if (granted) {
+                    return recordingDirectoryHandle;
+                }
+            }
+
+            let baseDir;
+            try {
+                baseDir = await window.showDirectoryPicker({
+                    mode: 'readwrite',
+                    startIn: 'downloads'
+                });
+            } catch (error) {
+                // Some browsers support showDirectoryPicker but reject the startIn option.
+                if (error instanceof TypeError) {
+                    baseDir = await window.showDirectoryPicker({ mode: 'readwrite' });
+                } else {
+                    throw error;
+                }
+            }
+            const granted = await ensureDirectoryPermission(baseDir);
+            if (!granted) {
+                throw new Error('Permission denied for selected folder');
+            }
+            recordingDirectoryHandle = baseDir;
+            return baseDir;
+        }
+
+        async function enforceLocalRecordingCap(dirHandle, maxBytes) {
+            const files = [];
+            let totalBytes = 0;
+
+            for await (const [name, handle] of dirHandle.entries()) {
+                if (handle.kind !== 'file' || !name.toLowerCase().endsWith('.webm')) {
+                    continue;
+                }
+                const file = await handle.getFile();
+                totalBytes += file.size;
+                files.push({
+                    name,
+                    size: file.size,
+                    lastModified: file.lastModified
+                });
+            }
+
+            files.sort((a, b) => a.lastModified - b.lastModified);
+
+            let deletedBytes = 0;
+            while (totalBytes > maxBytes && files.length > 0) {
+                const oldest = files.shift();
+                await dirHandle.removeEntry(oldest.name);
+                totalBytes -= oldest.size;
+                deletedBytes += oldest.size;
+            }
+
+            return { totalBytes, deletedBytes };
+        }
+
+        async function saveRecordingBlobLocally(blob) {
+            const filename = buildRecordingFilename();
+            const dirHandle = await ensureClientRecordingDirectory();
+
+            if (dirHandle) {
+                const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+
+                const retention = await enforceLocalRecordingCap(dirHandle, MAX_LOCAL_RECORDINGS_BYTES);
+                return {
+                    path: filename,
+                    bytes: blob.size,
+                    retainedBytes: retention.totalBytes,
+                    deletedBytes: retention.deletedBytes,
+                    usedFallback: false
+                };
+            }
+
+            const fallbackName = filename;
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fallbackName;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+
+            return {
+                path: fallbackName,
+                bytes: blob.size,
+                retainedBytes: blob.size,
+                deletedBytes: 0,
+                usedFallback: true
+            };
+        }
+
+        function renderRecordingFrame() {
+            if (!isRecordingVideo || !recordingContext || !recordingCanvas) {
+                return;
+            }
+
+            const feed = document.getElementById('video-feed');
+            const { width: feedWidth, height: feedHeight } = getFeedIntrinsicSize(feed);
+            if (feed && feedWidth > 0 && feedHeight > 0) {
+                const rotation = recordingRotationDegrees;
+                recordingContext.fillStyle = '#000';
+                recordingContext.fillRect(0, 0, recordingCanvas.width, recordingCanvas.height);
+                recordingContext.save();
+                recordingContext.translate(recordingCanvas.width / 2, recordingCanvas.height / 2);
+                recordingContext.rotate((rotation * Math.PI) / 180);
+                recordingContext.drawImage(
+                    feed,
+                    -feedWidth / 2,
+                    -feedHeight / 2,
+                    feedWidth,
+                    feedHeight
+                );
+                recordingContext.restore();
+            }
+            recordingAnimationFrame = requestAnimationFrame(renderRecordingFrame);
+        }
+
+        function stopRecordingRenderLoop() {
+            if (recordingAnimationFrame) {
+                cancelAnimationFrame(recordingAnimationFrame);
+                recordingAnimationFrame = null;
+            }
+        }
+
+        function cleanupRecordingResources() {
+            stopRecordingRenderLoop();
+            if (recordingCanvasStream) {
+                recordingCanvasStream.getTracks().forEach((track) => track.stop());
+            }
+            stopRecordingAudioCapture();
+            recordingCombinedStream = null;
+            recordingCanvasStream = null;
+            recordingMediaRecorder = null;
+            recordingCanvas = null;
+            recordingContext = null;
+            recordingRotationDegrees = 0;
+        }
+
+        async function startVideoRecording() {
+            if (isRecordingVideo) return;
+
+            const feed = document.getElementById('video-feed');
+            if (!feed) return;
+
+            if (!window.MediaRecorder) {
+                setRecordingStatus('Recording unavailable: MediaRecorder is not supported');
+                return;
+            }
+
+            recordingMimeType = getSupportedRecordingMimeType();
+            if (!recordingMimeType) {
+                setRecordingStatus('Recording unavailable: no supported WebM codec');
+                return;
+            }
+
+            try {
+                setRecordingStatus('Starting recording...');
+                const intrinsic = getFeedIntrinsicSize(feed);
+                const sourceWidth = Math.max(1, Number(cameraSettings.width || intrinsic.width || 1280));
+                const sourceHeight = Math.max(1, Number(cameraSettings.height || intrinsic.height || 720));
+                recordingRotationDegrees = getSelectedRotationDegrees();
+                const isQuarterTurn = recordingRotationDegrees === 90 || recordingRotationDegrees === 270;
+                const width = isQuarterTurn ? sourceHeight : sourceWidth;
+                const height = isQuarterTurn ? sourceWidth : sourceHeight;
+                const fps = Math.max(1, Math.min(30, Number(cameraSettings.fps || 20)));
+
+                recordingCanvas = document.createElement('canvas');
+                recordingCanvas.width = width;
+                recordingCanvas.height = height;
+                recordingContext = recordingCanvas.getContext('2d', { alpha: false });
+
+                recordingCanvasStream = recordingCanvas.captureStream(fps);
+                recordingCombinedStream = new MediaStream();
+                recordingCanvasStream.getVideoTracks().forEach((track) => recordingCombinedStream.addTrack(track));
+
+                try {
+                    const recordingAudioTrack = await startRecordingAudioCapture();
+                    if (recordingAudioTrack) {
+                        recordingCombinedStream.addTrack(recordingAudioTrack);
+                    }
+                } catch (audioError) {
+                    console.warn('Recording audio unavailable:', audioError);
+                }
+
+                recordingMediaRecorder = new MediaRecorder(recordingCombinedStream, {
+                    mimeType: recordingMimeType,
+                    videoBitsPerSecond: 4_000_000
+                });
+
+                recordingChunks = [];
+                recordingMediaRecorder.addEventListener('dataavailable', (event) => {
+                    if (!event.data || event.data.size === 0) {
+                        return;
+                    }
+                    recordingChunks.push(event.data);
+                });
+
+                recordingMediaRecorder.addEventListener('error', (event) => {
+                    const err = event.error?.message || 'MediaRecorder error';
+                    setRecordingStatus(`Recording error: ${err}`);
+                });
+
+                isRecordingVideo = true;
+                updateRecordingButton();
+                renderRecordingFrame();
+                recordingMediaRecorder.start(1000);
+                const hasAudio = recordingCombinedStream.getAudioTracks().length > 0;
+                setRecordingStatus(hasAudio ? 'Recording video + Pi audio on this client...' : 'Recording video only on this client...');
+            } catch (error) {
+                isRecordingVideo = false;
+                updateRecordingButton();
+                cleanupRecordingResources();
+                recordingChunks = [];
+                setRecordingStatus(`Failed to start recording: ${error.message}`);
+            }
+        }
+
+        async function stopVideoRecording() {
+            if (!isRecordingVideo) return;
+
+            isRecordingVideo = false;
+            updateRecordingButton();
+            setRecordingStatus('Stopping recording...');
+
+            const recorder = recordingMediaRecorder;
+
+            try {
+                if (recorder && recorder.state !== 'inactive') {
+                    await new Promise((resolve) => {
+                        recorder.addEventListener('stop', resolve, { once: true });
+                        recorder.stop();
+                    });
+                }
+
+                const blob = new Blob(recordingChunks, { type: recordingMimeType || 'video/webm' });
+                recordingChunks = [];
+                if (blob.size === 0) {
+                    setRecordingStatus('No video data captured');
+                    return;
+                }
+
+                const result = await saveRecordingBlobLocally(blob);
+                const details = `Saved ${formatBytes(result.bytes)} to ${result.path}. Total kept: ${formatBytes(result.retainedBytes)} / 1.00 GB`;
+                if (result.usedFallback) {
+                    setRecordingStatus(`${details} (download fallback used)`);
+                } else {
+                    setRecordingStatus(details);
+                }
+            } catch (error) {
+                setRecordingStatus(`Failed to finalize recording: ${error.message}`);
+            } finally {
+                cleanupRecordingResources();
+                recordingChunks = [];
+            }
+        }
+
+        function initializeVideoRecordingControl() {
+            const button = document.getElementById('record-video-btn');
+            const chooseFolderBtn = document.getElementById('choose-save-folder-btn');
+            const snapshotBtn = document.getElementById('snapshot-btn');
+            if (!button) return;
+
+            updateRecordingButton();
+            button.addEventListener('click', async () => {
+                button.disabled = true;
+                try {
+                    if (isRecordingVideo) {
+                        await stopVideoRecording();
+                    } else {
+                        await startVideoRecording();
+                    }
+                } finally {
+                    button.disabled = false;
+                }
+            });
+
+            if (chooseFolderBtn) {
+                chooseFolderBtn.addEventListener('click', async () => {
+                    chooseFolderBtn.disabled = true;
+                    setRecordingStatus('Opening folder picker...');
+                    try {
+                        const dirHandle = await ensureClientRecordingDirectory(true);
+                        if (dirHandle) {
+                            setRecordingStatus('Save folder ready: selected folder');
+                        } else {
+                            setRecordingStatus('Folder picker unavailable; browser download fallback will be used');
+                        }
+                    } catch (error) {
+                        setRecordingStatus(`Save folder selection failed: ${error.message}`);
+                    } finally {
+                        chooseFolderBtn.disabled = false;
+                    }
+                });
+            }
+
+            if (snapshotBtn) {
+                snapshotBtn.addEventListener('click', () => takeSnapshot());
+            }
+        }
+
+        async function takeSnapshot() {
+            const feed = document.getElementById('video-feed');
+            const faceOverlay = document.getElementById('face-overlay');
+            const intrinsic = getFeedIntrinsicSize(feed);
+            if (!feed || !intrinsic.width || !intrinsic.height) {
+                setRecordingStatus('Snapshot failed: no video frame available');
+                return;
+            }
+            const btn = document.getElementById('snapshot-btn');
+            if (btn) btn.disabled = true;
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = intrinsic.width;
+                canvas.height = intrinsic.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(feed, 0, 0);
+
+                if (faceOverlay && faceOverlay.width > 0 && faceOverlay.height > 0) {
+                    const scaleX = canvas.width / faceOverlay.width;
+                    const scaleY = canvas.height / faceOverlay.height;
+                    ctx.drawImage(
+                        faceOverlay,
+                        0,
+                        0,
+                        faceOverlay.width,
+                        faceOverlay.height,
+                        0,
+                        0,
+                        faceOverlay.width * scaleX,
+                        faceOverlay.height * scaleY
+                    );
+                }
+                const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+                if (!blob) throw new Error('Canvas toBlob returned null');
+
+                const now = new Date();
+                const pad = (n) => String(n).padStart(2, '0');
+                const filename = `snapshot_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.jpg`;
+
+                if (recordingDirectoryHandle) {
+                    const granted = await ensureDirectoryPermission(recordingDirectoryHandle);
+                    if (granted) {
+                        const fileHandle = await recordingDirectoryHandle.getFileHandle(filename, { create: true });
+                        const writable = await fileHandle.createWritable();
+                        await writable.write(blob);
+                        await writable.close();
+                        setRecordingStatus(`Snapshot saved: ${filename}`);
+                        return;
+                    }
+                }
+
+                // Fallback: browser download
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(url);
+                setRecordingStatus(`Snapshot downloaded: ${filename}`);
+            } catch (error) {
+                setRecordingStatus(`Snapshot failed: ${error.message}`);
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        function getFeedIntrinsicSize(feed) {
+            if (!feed) return { width: 0, height: 0 };
+            const width = Number(feed.videoWidth || feed.naturalWidth || 0);
+            const height = Number(feed.videoHeight || feed.naturalHeight || 0);
+            return { width, height };
+        }
+
+        function updateVideoRatio(width, height) {
+            const ratio = `${width} / ${height}`;
+            const container = document.querySelector('.container');
+            const feed = document.getElementById('video-feed');
+            if (container) {
+                container.style.aspectRatio = ratio;
+                container.style.width = `min(96vw, calc(96dvh * ${width} / ${height}))`;
+                container.style.maxHeight = '96dvh';
+            }
+            if (feed) feed.style.aspectRatio = ratio;
+        }
+
+        function updateVideoInfo(width, height, fps) {
+            const videoInfo = document.getElementById('video-info');
+            if (!videoInfo) return;
+            videoInfo.innerHTML = `<strong>Video:</strong> ${width}x${height} @ ${fps}fps`;
+            updateVideoRatio(width, height);
+        }
+
+        function updateCameraDeviceInfo(devicePath) {
+            const cameraDeviceInfo = document.getElementById('camera-device-info');
+            if (!cameraDeviceInfo) return;
+            const sourceBadge = document.getElementById('camera-source-badge');
+            const sourceBadgeHtml = sourceBadge ? sourceBadge.outerHTML : '';
+            cameraDeviceInfo.innerHTML = `<strong>Camera Device:</strong> ${devicePath || 'Unavailable'} ${sourceBadgeHtml}`;
+        }
+
+        function updateCameraSourceBadge(sourceType) {
+            const badge = document.getElementById('camera-source-badge');
+            if (!badge) return;
+
+            const normalized = String(sourceType || 'Unknown').toUpperCase();
+            const className = normalized === 'CSI' ? 'csi' : (normalized === 'V4L2' ? 'v4l2' : 'unknown');
+
+            badge.classList.remove('csi', 'v4l2', 'unknown');
+            badge.classList.add(className);
+            badge.textContent = normalized;
+        }
+
+        function populateResolutionSelect(options, selectedWidth, selectedHeight) {
+            const resolutionSelect = document.getElementById('camera-resolution');
+            if (!resolutionSelect) return;
+
+            resolutionSelect.innerHTML = '';
+            options.forEach((item) => {
+                const option = document.createElement('option');
+                option.value = `${item.width}x${item.height}`;
+                option.textContent = `${item.width}x${item.height}`;
+                resolutionSelect.appendChild(option);
+            });
+
+            const selectedValue = `${selectedWidth}x${selectedHeight}`;
+            const hasValue = options.some((item) => `${item.width}x${item.height}` === selectedValue);
+            if (hasValue) {
+                resolutionSelect.value = selectedValue;
+            }
+        }
+
+        function populateCameraDeviceSelect(options, selectedPath) {
+            const deviceSelect = document.getElementById('camera-device-path');
+            if (!deviceSelect) return;
+
+            deviceSelect.innerHTML = '';
+            const deviceOptions = Array.isArray(options)
+                ? options.filter((device) => device && device.supported)
+                : [];
+
+            if (deviceOptions.length === 0) {
+                const fallbackOption = document.createElement('option');
+                fallbackOption.value = selectedPath || '';
+                fallbackOption.textContent = 'No supported camera devices found';
+                deviceSelect.appendChild(fallbackOption);
+                return;
+            }
+
+            deviceOptions.forEach((device) => {
+                const option = document.createElement('option');
+                option.value = device.path;
+                const baseName = device.name || device.path;
+                option.textContent = baseName;
+                deviceSelect.appendChild(option);
+            });
+
+            const hasSelected = deviceOptions.some((device) => device.path === selectedPath);
+            if (hasSelected) {
+                deviceSelect.value = selectedPath;
+            } else if (deviceOptions.length > 0) {
+                deviceSelect.value = deviceOptions[0].path;
+            }
+        }
+
+        async function loadCameraSettings() {
+            const status = document.getElementById('camera-settings-status');
+            const fpsInput = document.getElementById('camera-fps');
+
+            try {
+                const response = await fetch('/camera_settings');
+                const data = await response.json();
+                if (!response.ok || data.status !== 'ok') {
+                    throw new Error(data.message || `HTTP ${response.status}`);
+                }
+
+                cameraSettings.width = Number(data.width);
+                cameraSettings.height = Number(data.height);
+                cameraSettings.fps = Number(data.fps);
+                cameraSettings.devicePath = data.selected_camera_device || data.camera_device || cameraSettings.devicePath;
+                cameraSettings.sourceType = data.camera_source_type || cameraSettings.sourceType;
+                cameraSettings.availableDevices = Array.isArray(data.available_camera_devices)
+                    ? data.available_camera_devices
+                    : cameraSettings.availableDevices;
+                cameraSettings.allowedResolutions = Array.isArray(data.allowed_resolutions)
+                    ? data.allowed_resolutions
+                    : cameraSettings.allowedResolutions;
+                cameraSettings.fpsMin = Number(data.fps_range?.min || 1);
+                cameraSettings.fpsMax = Number(data.fps_range?.max || 60);
+
+                populateResolutionSelect(
+                    cameraSettings.allowedResolutions,
+                    cameraSettings.width,
+                    cameraSettings.height
+                );
+                populateCameraDeviceSelect(
+                    cameraSettings.availableDevices,
+                    cameraSettings.devicePath
+                );
+
+                if (fpsInput) {
+                    fpsInput.min = String(cameraSettings.fpsMin);
+                    fpsInput.max = String(cameraSettings.fpsMax);
+                    fpsInput.value = String(cameraSettings.fps);
+                }
+
+                updateVideoInfo(cameraSettings.width, cameraSettings.height, cameraSettings.fps);
+                updateCameraDeviceInfo(data.camera_device || cameraSettings.devicePath);
+                updateCameraSourceBadge(cameraSettings.sourceType);
+                if (status) {
+                    status.textContent = 'Camera settings loaded';
+                }
+            } catch (error) {
+                if (status) {
+                    status.textContent = `Failed to load camera settings: ${error.message}`;
+                }
+            }
+        }
+
+        async function applyCameraSettings() {
+            const resolutionSelect = document.getElementById('camera-resolution');
+            const fpsInput = document.getElementById('camera-fps');
+            const deviceSelect = document.getElementById('camera-device-path');
+            const status = document.getElementById('camera-settings-status');
+            const applyBtn = document.getElementById('apply-camera-settings-btn');
+
+            if (!resolutionSelect || !fpsInput || !applyBtn || !deviceSelect) {
+                return;
+            }
+
+            const [widthText, heightText] = (resolutionSelect.value || '').split('x');
+            const width = Number(widthText);
+            const height = Number(heightText);
+            const fps = Number(fpsInput.value);
+            const cameraDevice = String(deviceSelect.value || '').trim();
+
+            applyBtn.disabled = true;
+            videoSettingsApplyInProgress = true;
+            if (status) {
+                status.textContent = 'Applying camera settings...';
+            }
+
+            try {
+                const response = await fetch('/camera_settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        width,
+                        height,
+                        fps,
+                        camera_device: cameraDevice
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok || data.status !== 'ok') {
+                    throw new Error(data.message || `HTTP ${response.status}`);
+                }
+
+                cameraSettings.width = Number(data.width);
+                cameraSettings.height = Number(data.height);
+                cameraSettings.fps = Number(data.fps);
+                cameraSettings.devicePath = data.camera_device || cameraDevice || cameraSettings.devicePath;
+                cameraSettings.sourceType = data.camera_source_type || cameraSettings.sourceType;
+                updateVideoInfo(cameraSettings.width, cameraSettings.height, cameraSettings.fps);
+                updateCameraDeviceInfo(cameraSettings.devicePath);
+                updateCameraSourceBadge(cameraSettings.sourceType);
+
+                if (status) {
+                    status.textContent = `Camera set to ${cameraSettings.width}x${cameraSettings.height} @ ${cameraSettings.fps}fps (${cameraSettings.devicePath})`;
+                }
+
+                // Keep the current WebRTC session alive; backend stream handling will recover during camera restart.
+                if (webrtcState !== 'connected' && webrtcState !== 'connecting') {
+                    startVideoStream();
+                }
+            } catch (error) {
+                videoSettingsApplyInProgress = false;
+                if (status) {
+                    status.textContent = `Failed to apply camera settings: ${error.message}`;
+                }
+            } finally {
+                applyBtn.disabled = false;
+                if (videoSettingsApplyInProgress) {
+                    setTimeout(() => {
+                        videoSettingsApplyInProgress = false;
+                    }, 2500);
+                }
+            }
+        }
+
+        function initializeCameraSettingsControl() {
+            const applyBtn = document.getElementById('apply-camera-settings-btn');
+            const fpsInput = document.getElementById('camera-fps');
+
+            if (applyBtn) {
+                applyBtn.addEventListener('click', () => {
+                    applyCameraSettings();
+                });
+            }
+
+            if (fpsInput) {
+                fpsInput.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        applyCameraSettings();
+                    }
+                });
+            }
+
+            loadCameraSettings();
+        }
+
+        function populateServerDeviceSelect(selectId, options, selectedId) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            select.innerHTML = '';
+
+            options.forEach(optionData => {
+                const option = document.createElement('option');
+                option.value = optionData.id;
+                option.textContent = optionData.name;
+                select.appendChild(option);
+            });
+
+            const hasSelected = options.some(item => item.id === selectedId);
+            if (hasSelected) {
+                select.value = selectedId;
+            } else if (options.length > 0) {
+                select.value = options[0].id;
+            }
+        }
+
+        async function loadServerAudioDevices() {
+            const status = document.getElementById('server-device-status');
+            try {
+                const response = await fetch('/server_audio_devices');
+                const data = await response.json();
+                if (!response.ok || data.status !== 'ok') {
+                    throw new Error(data.message || `HTTP ${response.status}`);
+                }
+
+                serverMicOptions = Array.isArray(data.microphones) ? data.microphones : [];
+                serverSpeakerOptions = Array.isArray(data.speakers) ? data.speakers : [];
+                selectedServerMic = data.selected_microphone || 'default';
+                selectedServerSpeaker = data.selected_speaker || '@DEFAULT_SINK@';
+
+                populateServerDeviceSelect('server-mic-select', serverMicOptions, selectedServerMic);
+                populateServerDeviceSelect('server-speaker-select', serverSpeakerOptions, selectedServerSpeaker);
+
+                if (status) {
+                    status.textContent = `Server devices loaded: ${serverMicOptions.length} microphones, ${serverSpeakerOptions.length} speakers`;
+                }
+            } catch (error) {
+                if (status) {
+                    status.textContent = `Server audio device load failed: ${error.message}`;
+                }
+            }
+        }
+
+        async function applyServerAudioSelection() {
+            const micSelect = document.getElementById('server-mic-select');
+            const speakerSelect = document.getElementById('server-speaker-select');
+            const status = document.getElementById('server-device-status');
+
+            if (!micSelect || !speakerSelect) {
+                return;
+            }
+
+            const requestedMic = micSelect.value;
+            const requestedSpeaker = speakerSelect.value;
+            if (status) {
+                status.textContent = 'Applying server device selection...';
+            }
+
+            try {
+                const response = await fetch('/server_audio_devices/select', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        microphone: requestedMic,
+                        speaker: requestedSpeaker
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok || data.status !== 'ok') {
+                    throw new Error(data.message || `HTTP ${response.status}`);
+                }
+
+                selectedServerMic = data.selected_microphone;
+                selectedServerSpeaker = data.selected_speaker;
+                if (status) {
+                    status.textContent = 'Server audio device selection applied';
+                }
+                debug(`Server devices set: mic=${selectedServerMic}, speaker=${selectedServerSpeaker}`);
+            } catch (error) {
+                if (status) {
+                    status.textContent = `Failed to apply server device selection: ${error.message}`;
+                }
+            }
+        }
+
+        function initializeServerAudioDeviceControls() {
+            const micSelect = document.getElementById('server-mic-select');
+            const speakerSelect = document.getElementById('server-speaker-select');
+
+            if (micSelect) {
+                micSelect.addEventListener('change', () => {
+                    applyServerAudioSelection();
+                });
+            }
+
+            if (speakerSelect) {
+                speakerSelect.addEventListener('change', () => {
+                    applyServerAudioSelection();
+                });
+            }
+
+            loadServerAudioDevices();
+        }
+
+        function applyCameraRotation(degrees) {
+            const feed = document.getElementById('video-feed');
+            const faceOverlay = document.getElementById('face-overlay');
+            if (!feed) return;
+
+            const normalized = Number(degrees);
+            const valid = [0, 90, 180, 270].includes(normalized) ? normalized : 0;
+            const scale = (valid === 90 || valid === 270) ? 0.5625 : 1;
+            feed.style.transform = `rotate(${valid}deg) scale(${scale})`;
+            if (faceOverlay) {
+                faceOverlay.style.transform = `rotate(${valid}deg) scale(${scale})`;
+            }
+        }
+
+        function drawFaceOverlay() {
+            const canvas = document.getElementById('face-overlay');
+            const feed = document.getElementById('video-feed');
+            if (!canvas || !feed) {
+                return;
+            }
+
+            const ctx = canvas.getContext('2d');
+            const width = Math.max(1, Math.round(feed.clientWidth));
+            const height = Math.max(1, Math.round(feed.clientHeight));
+            if (canvas.width !== width || canvas.height !== height) {
+                canvas.width = width;
+                canvas.height = height;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Hide overlay when the displayed video frame is stale (no new frames for 2s).
+            if (lastVideoFrameAt > 0 && Date.now() - lastVideoFrameAt > 2000) {
+                return;
+            }
+
+            const faces = latestFaceResult?.faces || [];
+            const sourceWidth = latestFaceResult?.image_width || 0;
+            const sourceHeight = latestFaceResult?.image_height || 0;
+            if (!faces.length || sourceWidth <= 0 || sourceHeight <= 0) {
+                return;
+            }
+
+            const scaleX = canvas.width / sourceWidth;
+            const scaleY = canvas.height / sourceHeight;
+            ctx.lineWidth = 2;
+            ctx.font = '600 14px Segoe UI';
+            ctx.textBaseline = 'top';
+
+            faces.forEach((face) => {
+                const x = Math.max(0, Math.round(face.left * scaleX));
+                const y = Math.max(0, Math.round(face.top * scaleY));
+                const w = Math.max(1, Math.round((face.right - face.left) * scaleX));
+                const h = Math.max(1, Math.round((face.bottom - face.top) * scaleY));
+                const isKnown = face.name && face.name !== 'Unknown';
+                const color = isKnown ? '#2ecc71' : '#f39c12';
+
+                ctx.strokeStyle = color;
+                ctx.strokeRect(x, y, w, h);
+
+                const confidencePct = Math.round((Number(face.confidence) || 0) * 100);
+                const label = isKnown ? `${face.name} (${confidencePct}%)` : 'Unknown';
+                const textWidth = Math.ceil(ctx.measureText(label).width);
+                const labelX = x;
+                const labelY = Math.max(0, y - 18);
+                ctx.fillStyle = color;
+                ctx.fillRect(labelX, labelY, textWidth + 8, 18);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(label, labelX + 4, labelY + 2);
+            });
+        }
+
+        function handleFaceDataPush(data) {
+            const status = document.getElementById('face-ai-status');
+            if (!data.enabled) {
+                if (status) {
+                    status.innerHTML = '<strong>Face AI:</strong> Disabled';
+                }
+                pendingFaceResultsBySeq.clear();
+                latestFaceResult = null;
+                lastAppliedFaceFrameSeq = 0;
+                drawFaceOverlay();
+                updateFrameSyncDebug();
+                updateFaceSettingsUI(data);
+                return;
+            }
+            if (!data.available) {
+                if (status) {
+                    status.innerHTML = `<strong>Face AI:</strong> Unavailable (${data.message || 'not ready'})`;
+                }
+                pendingFaceResultsBySeq.clear();
+                latestFaceResult = null;
+                lastAppliedFaceFrameSeq = 0;
+                drawFaceOverlay();
+                updateFrameSyncDebug();
+                updateFaceSettingsUI(data);
+                return;
+            }
+            bufferFaceResult(data.result || null);
+            clearFaceResultsThroughSeq(videoCurrentFrameSeq - getFaceResultRetentionWindowFrames());
+            const faceCount = data.result?.faces?.length || 0;
+            if (status) {
+                status.innerHTML = `<strong>Face AI:</strong> Active, ${faceCount} face(s), ${data.known_faces_count} known profile(s)`;
+            }
+            updateFaceSettingsUI(data);
+        }
+
+        async function pollFaceStatus() {
+            const status = document.getElementById('face-ai-status');
+            try {
+                const response = await fetch('/face_status');
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                if (!data.enabled) {
+                    if (status) {
+                        status.innerHTML = '<strong>Face AI:</strong> Disabled';
+                    }
+                    pendingFaceResultsBySeq.clear();
+                    latestFaceResult = null;
+                    lastAppliedFaceFrameSeq = 0;
+                    drawFaceOverlay();
+                    updateFrameSyncDebug();
+                    updateFaceSettingsUI(data);
+                    return;
+                }
+
+                if (!data.available) {
+                    let faceMessage;
+                    if (!data.enabled) {
+                        faceMessage = '<strong>Face AI:</strong> Disabled';
+                    } else if (data.initializing) {
+                        faceMessage = `<strong>Face AI:</strong> Loading… (${data.message || 'please wait'})`;
+                    } else {
+                        faceMessage = `<strong>Face AI:</strong> Unavailable (${data.message || 'not ready'})`;
+                    }
+                    if (status) {
+                        status.innerHTML = faceMessage;
+                    }
+                    pendingFaceResultsBySeq.clear();
+                    latestFaceResult = null;
+                    lastAppliedFaceFrameSeq = 0;
+                    drawFaceOverlay();
+                    updateFrameSyncDebug();
+                    updateFaceSettingsUI(data);
+                    return;
+                }
+
+                bufferFaceResult(data.result || null);
+                clearFaceResultsThroughSeq(videoCurrentFrameSeq - getFaceResultRetentionWindowFrames());
+                const faceCount = data.result?.faces?.length || 0;
+                if (status) {
+                    status.innerHTML = `<strong>Face AI:</strong> Active, ${faceCount} face(s), ${data.known_faces_count} known profile(s)`;
+                }
+                updateFaceSettingsUI(data);
+            } catch (error) {
+                if (status) {
+                    status.innerHTML = `<strong>Face AI:</strong> Error (${error.message})`;
+                }
+            }
+        }
+
+        function initializeCameraRotationControl() {
+            const rotationSelect = document.getElementById('camera-rotation');
+            if (!rotationSelect) return;
+
+            const saved = localStorage.getItem(ROTATION_STORAGE_KEY);
+            const initialRotation = [90, 180, 270].includes(Number(saved)) ? Number(saved) : 0;
+
+            rotationSelect.value = String(initialRotation);
+            applyCameraRotation(initialRotation);
+
+            rotationSelect.addEventListener('change', (event) => {
+                const selectedRotation = Number(event.target.value);
+                applyCameraRotation(selectedRotation);
+                localStorage.setItem(ROTATION_STORAGE_KEY, String(selectedRotation));
+            });
+        }
+
+        async function refreshSystemStatus() {
+            const statusEl = document.getElementById('system-status');
+
+            try {
+                const response = await fetch('/status');
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                if (Number.isFinite(data.camera_width) && Number.isFinite(data.camera_height) && Number.isFinite(data.camera_fps)) {
+                    updateVideoInfo(data.camera_width, data.camera_height, data.camera_fps);
+                }
+                updateCameraDeviceInfo(data.camera_device);
+                updateCameraSourceBadge(data.camera_source_type);
+
+                if (statusEl) {
+                    const isHealthy = Boolean(data.camera) && Boolean(data.audio);
+                    statusEl.innerHTML = isHealthy
+                        ? '<strong>Status:</strong> Running ✓'
+                        : '<strong>Status:</strong> Degraded ⚠';
+                }
+            } catch (error) {
+                if (statusEl) {
+                    statusEl.innerHTML = '<strong>Status:</strong> Offline ✗';
+                }
+            }
+        }
+
+        async function startListening(trigger = 'manual') {
+            if (isListening) {
+                return;
+            }
+
+            try {
+                await initAudioContext();
+                isListening = true;
+                if (listenReconnectTimer) {
+                    clearTimeout(listenReconnectTimer);
+                    listenReconnectTimer = null;
+                }
+                updateUIStatus('listen', true);
+                if (!webrtcPeer && !webrtcConnectPromise && webrtcState !== 'connecting' && webrtcState !== 'connected') {
+                    await connectWebRTCSession();
+                }
+                const remoteAudio = document.getElementById('remote-audio');
+                if (remoteAudio) {
+                    remoteAudio.muted = false;
+                    remoteAudio.play().catch(() => {});
+                }
+            } catch (error) {
+                debug(`Listen error: ${error.message}`);
+                if (isListening) {
+                    if (listenReconnectTimer) {
+                        clearTimeout(listenReconnectTimer);
+                    }
+                    listenReconnectTimer = setTimeout(() => {
+                        if (isListening) {
+                            startListening();
+                        }
+                    }, 1200);
+                } else {
+                    updateUIStatus('listen', false);
+                }
+            }
+        }
+
+        function stopListening() {
+            isListening = false;
+            if (listenReconnectTimer) {
+                clearTimeout(listenReconnectTimer);
+                listenReconnectTimer = null;
+            }
+            resetVolumeMeter('listen-volume-bar', 'listen-volume-text', 'listen');
+            const remoteAudio = document.getElementById('remote-audio');
+            if (remoteAudio) {
+                remoteAudio.muted = true;
+            }
+            updateUIStatus('listen', false);
+        }
+
+        // Toggle talking to remote speaker
+        async function toggleTalk() {
+            if (isTalking) {
+                stopTalking();
+            } else {
+                startTalking();
+            }
+        }
+
+        async function startTalking() {
+            try {
+                const sessionId = ++talkSessionId;
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: TALKBACK_CONFIG.echoCancellation,
+                        noiseSuppression: TALKBACK_CONFIG.noiseSuppression,
+                        autoGainControl: TALKBACK_CONFIG.autoGainControl,
+                        channelCount: 1,
+                        sampleRate: 48000,
+                        latency: TALKBACK_CONFIG.latencySeconds
+                    }
+                });
+                micStream = stream;
+
+                // Check microphone volume
+                const audioTracks = stream.getAudioTracks();
+                console.log('Audio tracks:', audioTracks);
+                audioTracks.forEach(track => {
+                    console.log('Track settings:', track.getSettings());
+                });
+
+                await initAudioContext();
+                await ensureTalkWorkletModule();
+                await connectWebRTCSession();
+                if (!talkSender) {
+                    throw new Error('WebRTC talk sender not ready');
+                }
+                isTalking = true;
+                updateUIStatus('talk', true);
+
+                if (isRecordingVideo) {
+                    attachTalkMicToRecordingMix();
+                }
+
+                micSourceNode = audioContext.createMediaStreamSource(stream);
+
+                // Keep voice frequencies and reduce low-frequency rumble / hiss.
+                voiceHighPass = audioContext.createBiquadFilter();
+                voiceHighPass.type = 'highpass';
+                voiceHighPass.frequency.value = TALKBACK_CONFIG.highPassHz;
+
+                voiceLowPass = audioContext.createBiquadFilter();
+                voiceLowPass.type = 'lowpass';
+                voiceLowPass.frequency.value = TALKBACK_CONFIG.lowPassHz;
+
+                talkDestination = audioContext.createMediaStreamDestination();
+
+                talkWorkletNode = new AudioWorkletNode(audioContext, 'talk-capture-processor', {
+                    numberOfInputs: 1,
+                    numberOfOutputs: 1,
+                    channelCount: 1,
+                    processorOptions: {
+                        chunkSamples: TALKBACK_CONFIG.chunkSamples
+                    }
+                });
+
+                let sendCount = 0;
+                talkWorkletNode.port.onmessage = (event) => {
+                    if (!isTalking || sessionId !== talkSessionId) return;
+
+                    if (event.data?.type !== 'chunk') {
+                        return;
+                    }
+
+                    const rms = Number(event.data.rms) || 0;
+                    const volumePercent = rmsToPercent(rms);
+
+                    updateVolumeMeter('volume-bar', 'volume-text', volumePercent, 'talk');
+
+                    // Log every 10th chunk
+                    sendCount++;
+                    if (sendCount % 10 === 0) {
+                        debug(`Volume: ${volumePercent}% (RMS: ${rms.toFixed(4)})`);
+                    }
+                };
+
+                micSourceNode.connect(voiceHighPass);
+                voiceHighPass.connect(voiceLowPass);
+                voiceLowPass.connect(talkWorkletNode);
+                voiceLowPass.connect(talkDestination);
+
+                talkDestinationTrack = talkDestination.stream.getAudioTracks()[0] || null;
+                if (!talkDestinationTrack) {
+                    throw new Error('Processed talkback track not available');
+                }
+                await talkSender.replaceTrack(talkDestinationTrack);
+
+                // Keep the worklet in a live graph without monitoring audio locally.
+                silentMonitorGain = audioContext.createGain();
+                silentMonitorGain.gain.value = 0;
+                talkWorkletNode.connect(silentMonitorGain);
+                silentMonitorGain.connect(audioContext.destination);
+
+            } catch (error) {
+                if (talkWorkletNode) {
+                    talkWorkletNode.port.onmessage = null;
+                    talkWorkletNode.disconnect();
+                    talkWorkletNode = null;
+                }
+                if (voiceLowPass) {
+                    voiceLowPass.disconnect();
+                    voiceLowPass = null;
+                }
+                if (voiceHighPass) {
+                    voiceHighPass.disconnect();
+                    voiceHighPass = null;
+                }
+                if (silentMonitorGain) {
+                    silentMonitorGain.disconnect();
+                    silentMonitorGain = null;
+                }
+                if (talkDestinationTrack) {
+                    try { talkDestinationTrack.stop(); } catch (_) {}
+                    talkDestinationTrack = null;
+                }
+                if (talkDestination) {
+                    talkDestination = null;
+                }
+                if (micSourceNode) {
+                    micSourceNode.disconnect();
+                    micSourceNode = null;
+                }
+                if (micStream) {
+                    micStream.getTracks().forEach(track => track.stop());
+                    micStream = null;
+                }
+                if (talkSender) {
+                    try { talkSender.replaceTrack(null); } catch (_) {}
+                }
+                resetVolumeMeter('volume-bar', 'volume-text', 'talk');
+                updateUIStatus('talk', false);
+                debug(`Microphone error: ${error.message}`);
+                alert('Could not access your microphone. Please check permissions.');
+            }
+        }
+
+        function stopTalking() {
+            isTalking = false;
+            talkSessionId++;
+
+            if (talkWorkletNode) {
+                talkWorkletNode.port.onmessage = null;
+                talkWorkletNode.disconnect();
+                talkWorkletNode = null;
+            }
+            if (voiceLowPass) {
+                voiceLowPass.disconnect();
+                voiceLowPass = null;
+            }
+            if (voiceHighPass) {
+                voiceHighPass.disconnect();
+                voiceHighPass = null;
+            }
+            if (silentMonitorGain) {
+                silentMonitorGain.disconnect();
+                silentMonitorGain = null;
+            }
+            if (talkDestinationTrack) {
+                try { talkDestinationTrack.stop(); } catch (_) {}
+                talkDestinationTrack = null;
+            }
+            if (talkDestination) {
+                talkDestination = null;
+            }
+            if (micSourceNode) {
+                micSourceNode.disconnect();
+                micSourceNode = null;
+            }
+            if (micStream) {
+                micStream.getTracks().forEach(track => track.stop());
+                micStream = null;
+            }
+            if (talkSender) {
+                try { talkSender.replaceTrack(null); } catch (_) {}
+            }
+
+            detachTalkMicFromRecordingMix();
+
+            resetVolumeMeter('volume-bar', 'volume-text', 'talk');
+            updateUIStatus('talk', false);
+        }
+
+        // Update UI status
+        function updateUIStatus(type, isActive) {
+            if (type === 'listen') {
+                const btn = document.getElementById('listen-btn');
+                const status = document.getElementById('listen-status');
+
+                if (btn) {
+                    btn.className = isActive ? 'btn-danger' : 'btn-primary';
+                    btn.textContent = isActive ? '⏹ Stop Listening' : '▶ Start Listening';
+                }
+
+                if (status) {
+                    status.className = isActive ? 'status active' : 'status inactive';
+                    status.innerHTML = isActive ?
+                        '<span class="recording-indicator"></span>Speaker: On' :
+                        'Speaker: Off';
+                }
+            } else if (type === 'talk') {
+                const btn = document.getElementById('talk-btn');
+                const status = document.getElementById('talk-status');
+
+                btn.className = isActive ? 'btn-danger' : 'btn-primary';
+                btn.textContent = isActive ? '⏹ Stop Talking' : '🎤 Start Talking';
+
+                status.className = isActive ? 'status active' : 'status inactive';
+                status.innerHTML = isActive ?
+                    '<span class="recording-indicator"></span>Microphone Input: On' :
+                    'Microphone Input: Off';
+            }
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (faceStatusTimer) {
+                clearInterval(faceStatusTimer);
+                faceStatusTimer = null;
+            }
+            stopVideoStream({ reason: 'beforeunload' });
+            stopListening();
+            stopTalking();
+            if (isRecordingVideo) {
+                stopVideoRecording();
+            }
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                return;
+            }
+            if (webrtcState === 'idle' && !webrtcConnectPromise) {
+                startVideoStream();
+            }
+        });
+
+        async function applyFaceSettings(enabled) {
+            const statusEl = document.getElementById('face-settings-status');
+            if (statusEl) statusEl.textContent = 'Applying...';
+            try {
+                const response = await fetch('/face_settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled })
+                });
+                const data = await response.json();
+                if (!response.ok || data.status !== 'ok') {
+                    throw new Error(data.message || `HTTP ${response.status}`);
+                }
+                updateFaceSettingsUI(data);
+                if (!enabled) {
+                    pendingFaceResultsBySeq.clear();
+                    latestFaceResult = null;
+                    lastAppliedFaceFrameSeq = 0;
+                    drawFaceOverlay();
+                    updateFrameSyncDebug();
+                    const faceStatus = document.getElementById('face-ai-status');
+                    if (faceStatus) faceStatus.innerHTML = '<strong>Face AI:</strong> Disabled';
+                } else if (data.initializing) {
+                    if (statusEl) statusEl.textContent = `Loading… (${data.message || 'please wait'})`;
+                    const faceStatus = document.getElementById('face-ai-status');
+                    if (faceStatus) faceStatus.innerHTML = `<strong>Face AI:</strong> Loading… (${data.message || 'please wait'})`;
+                }
+            } catch (error) {
+                if (statusEl) statusEl.textContent = `Failed: ${error.message}`;
+            }
+        }
+
+        function updateFaceSettingsUI(data) {
+            const toggle = document.getElementById('face-recognition-toggle');
+            const statusEl = document.getElementById('face-settings-status');
+
+            if (toggle && data.enabled !== undefined) {
+                toggle.checked = Boolean(data.enabled);
+            }
+
+            const backendLabel = document.getElementById('face-backend-label');
+            if (backendLabel && data.backend) backendLabel.textContent = data.backend;
+
+            const knownCount = document.getElementById('face-known-count');
+            if (knownCount && data.known_faces_count !== undefined) knownCount.textContent = data.known_faces_count;
+
+            const matchThreshold = document.getElementById('face-match-threshold');
+            if (matchThreshold && data.match_threshold !== undefined) matchThreshold.textContent = data.match_threshold.toFixed(2);
+
+            const detectInterval = document.getElementById('face-detect-interval');
+            if (detectInterval && data.detect_every_n_frames !== undefined) detectInterval.textContent = data.detect_every_n_frames;
+
+            if (statusEl) {
+                let text;
+                if (!data.enabled) {
+                    text = 'Disabled';
+                } else if (data.available) {
+                    text = 'Active';
+                } else if (data.initializing) {
+                    text = `Loading… (${data.message || 'please wait'})`;
+                } else {
+                    text = `Unavailable: ${data.message || 'not ready'}`;
+                }
+                statusEl.textContent = text;
+            }
+        }
+
+        function initializeFaceRecognitionControls() {
+            const toggle = document.getElementById('face-recognition-toggle');
+
+            if (toggle) {
+                toggle.addEventListener('change', () => {
+                    applyFaceSettings(toggle.checked);
+                });
+            }
+
+            // Sync initial state from server
+            fetch('/face_status')
+                .then(r => r.json())
+                .then(data => {
+                    updateFaceSettingsUI(data);
+                })
+                .catch(() => {});
+        }
+
+        async function initializeRealtimeMedia() {
+            startVideoStream();
+            await startListening('bootstrap');
+        }
+
+        initializeSpeakerVolumeControl();
+        initializeServerAudioDeviceControls();
+        initializeCameraRotationControl();
+        initializeCameraSettingsControl();
+        initializeVideoRecordingControl();
+        initializeFaceRecognitionControls();
+        initializeRealtimeMedia();
+        updateFrameSyncDebug();
+        window.addEventListener('resize', drawFaceOverlay);
+        pollFaceStatus();
+        faceStatusTimer = setInterval(pollFaceStatus, 2000);
+        refreshSystemStatus();
+        setInterval(refreshSystemStatus, 5000);
+
+        console.log('Page loaded - surveillance system ready');
+    </script>
+</body>
+</html>

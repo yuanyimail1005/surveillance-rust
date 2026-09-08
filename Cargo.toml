@@ -1,0 +1,23 @@
+[package]
+name = "surveillance-rust"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = { version = "0.8", features = ["json", "macros"] }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dotenvy = "0.15"
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
+rustls = { version = "0.23", features = ["ring"] }
+rustls-pemfile = "2.0"
+tower = { version = "0.5", features = ["util"] }
+webrtc = "0.11"
+webrtc-util = "0.9"
+opencv = { version = "0.100.1", features = ["imgproc", "objdetect", "imgcodecs"] }
+base64 = "0.23.1"
+log = "0.4.34"

@@ -1,0 +1,12 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "true": true,
+        "v4l2-ctl": true,
+        "cargo test": true,
+        "/^cd /home/eric/surveillance-rust && node /home/eric/surveillance-node/scripts/verify-webrtc\\.js$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "printf": true
+    }
+}
